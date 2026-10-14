@@ -1,3 +1,6 @@
+slint::include_modules!();
+
 fn main() {
-    println!("Hello, world!");
+  let ui = AppWindow::new().unwrap();
+  ui.run().unwrap();
 }
