@@ -1,3 +1,28 @@
+export global Api {
+    pure callback can-drop(data-transfer) -> bool;
+    callback dropped(data-transfer);
+}
+
 export component AppWindow inherits Window {
-  Text { text: "Hello World!"; }
+    max-width: 600px;
+    max-height: 450px;
+    min-width: 600px;
+    min-height: 450px;
+
+    Rectangle {
+        background: drop.has-drag ? #2f2f2f : #1c1c1c;
+        drop := DropArea {
+            can-drop(event) => {
+                Api.can-drop(event.data) ? DragAction.copy : DragAction.none
+            }
+            dropped(event) => {
+                Api.dropped(event.data);
+                return event.proposed-action;
+            }
+        }
+
+        Text {
+            text: "Drop here";
+        }
+    }
 }
