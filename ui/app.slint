@@ -1,7 +1,4 @@
-export global Api {
-    pure callback can-drop(data-transfer) -> bool;
-    callback dropped(data-transfer);
-}
+import { Button } from "std-widgets.slint";
 
 export component AppWindow inherits Window {
     max-width: 600px;
@@ -9,20 +6,24 @@ export component AppWindow inherits Window {
     min-width: 600px;
     min-height: 450px;
 
-    Rectangle {
-        background: drop.has-drag ? #2f2f2f : #1c1c1c;
-        drop := DropArea {
-            can-drop(event) => {
-                Api.can-drop(event.data) ? DragAction.copy : DragAction.none
-            }
-            dropped(event) => {
-                Api.dropped(event.data);
-                return event.proposed-action;
-            }
-        }
+    in property <bool> hovering;
+    callback add-clicked();
 
-        Text {
-            text: "Drop here";
+    Rectangle {
+        background: hovering ? #2f2f2f : #1c1c1c;
+
+        Image {
+            width: 128px;
+            height: 128px;
+            source: @image-url("assets/uplaod.png");
+            colorize: #545454;
         }
+    }
+
+    Button {
+        x: 8px;
+        y: 8px;
+        text: "+";
+        clicked => { root.add-clicked(); }
     }
 }
