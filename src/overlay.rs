@@ -14,8 +14,10 @@ use slint::{
     winit_030::{
         EventResult, WinitWindowAccessor,
         winit::{
+            dpi::PhysicalPosition,
             event::{ElementState, MouseButton, WindowEvent},
-            window::WindowLevel,
+            keyboard::{KeyCode, PhysicalKey},
+            window::{CursorIcon, ResizeDirection, Window, WindowLevel},
         },
     },
 };
@@ -63,20 +65,35 @@ pub fn open(overlays: &Rc<RefCell<Overlays>>, path: &Path) -> Result<(), Box<dyn
 }
 
 fn giffing_input(window: &GifWindow, overlays: Weak<RefCell<Overlays>>, id: u64) {
-    let super_held = Cell::new(false);
+    let ralt_held = Cell::new(false);
+    let cursor = Cell::new(PhysicalPosition::new(0.0, 0.0));
 
     window.window().on_winit_window_event(move |w, event| {
+        let held = || ralt_held.get() || platform::ralt_down();
         match event {
-            WindowEvent::ModifiersChanged(m) => super_held.set(m.state().super_key()),
+            WindowEvent::KeyboardInput { event, .. }
+                if event.physical_key == PhysicalKey::Code(KeyCode::AltRight) =>
+            {
+                ralt_held.set(event.state.is_pressed())
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                cursor.set(*position);
+                w.with_winit_window(|w| {
+                    let edge = held().then(|| resize_edge(w, *position)).flatten();
+                    w.set_cursor(edge.map_or(CursorIcon::Default, CursorIcon::from));
+                });
+            }
             WindowEvent::MouseInput {
                 state: ElementState::Pressed,
                 button,
                 ..
-            } if super_held.get() || platform::super_down() => {
-                platform::fuck_off_start_menu();
+            } if held() => {
                 match button {
                     MouseButton::Left => {
-                        w.with_winit_window(|w| w.drag_window().ok());
+                        w.with_winit_window(|w| match resize_edge(w, cursor.get()) {
+                            Some(edge) => w.drag_resize_window(edge).ok(),
+                            None => w.drag_window().ok(),
+                        });
                     }
                     MouseButton::Right => {
                         let overlays = overlays.clone();
@@ -94,6 +111,26 @@ fn giffing_input(window: &GifWindow, overlays: Weak<RefCell<Overlays>>, id: u64)
         }
         EventResult::Propagate
     });
+}
+
+fn resize_edge(w: &Window, pos: PhysicalPosition<f64>) -> Option<ResizeDirection> {
+    let border = 8.0 * w.scale_factor();
+    let size = w.inner_size();
+    let left = pos.x < border;
+    let right = pos.x > size.width as f64 - border;
+    let top = pos.y < border;
+    let bottom = pos.y > size.height as f64 - border;
+    Some(match (left, right, top, bottom) {
+        (true, _, true, _) => ResizeDirection::NorthWest,
+        (_, true, true, _) => ResizeDirection::NorthEast,
+        (true, _, _, true) => ResizeDirection::SouthWest,
+        (_, true, _, true) => ResizeDirection::SouthEast,
+        (true, ..) => ResizeDirection::West,
+        (_, true, ..) => ResizeDirection::East,
+        (_, _, true, _) => ResizeDirection::North,
+        (.., true) => ResizeDirection::South,
+        _ => return None,
+    })
 }
 
 fn animate(timer: &Rc<Timer>, window: &GifWindow, frames: Vec<(Image, Duration)>) {

@@ -56,10 +56,33 @@ fn main() {
         EventResult::Propagate
     });
 
-    ui.window().on_close_requested(|| {
-        slint::quit_event_loop().unwrap();
-        slint::CloseRequestResponse::HideWindow
+    let weak = ui.as_weak();
+    slint::spawn_local(async move {
+        let Some(ui) = weak.upgrade() else { return };
+        let Ok(w) = ui.window().winit_window().await else {
+            return;
+        };
+        if let Some(monitor) = w.current_monitor() {
+            let size = monitor.size().to_logical::<f32>(monitor.scale_factor());
+            ui.set_scale((size.width / 1920.0).min(size.height / 1080.0));
+        }
+    })
+    .unwrap();
+
+    let tray = Tray::new().unwrap();
+    tray.on_quit(|| slint::quit_event_loop().unwrap());
+    tray.on_open({
+        let weak = ui.as_weak();
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                ui.show().unwrap();
+            }
+        }
     });
 
-    ui.run().unwrap();
+    ui.window()
+        .on_close_requested(|| slint::CloseRequestResponse::HideWindow);
+
+    ui.show().unwrap();
+    slint::run_event_loop_until_quit().unwrap();
 }

@@ -1,10 +1,12 @@
 import { Button } from "std-widgets.slint";
 
 export component AppWindow inherits Window {
-    max-width: 600px;
-    max-height: 450px;
-    min-width: 600px;
-    min-height: 450px;
+    in property <float> scale: 1;
+
+    max-width: 600px * scale;
+    max-height: 450px * scale;
+    min-width: 600px * scale;
+    min-height: 450px * scale;
 
     in property <bool> hovering;
     callback add-clicked();
@@ -13,18 +15,38 @@ export component AppWindow inherits Window {
         background: hovering ? #2f2f2f : #1c1c1c;
 
         Image {
-            width: 128px;
-            height: 128px;
+            width: 128px * scale;
+            height: 128px * scale;
             source: @image-url("assets/uplaod.png");
             colorize: #545454;
         }
     }
 
     Button {
-        x: 8px;
-        y: 8px;
+        x: 8px * scale;
+        y: 8px * scale;
         text: "+";
         clicked => { root.add-clicked(); }
+    }
+}
+
+export component Tray inherits SystemTrayIcon {
+    icon: @image-url("assets/uplaod.png");
+    tooltip: "background_gif";
+
+    callback quit();
+    callback open();
+    clicked => { root.open(); }
+
+    Menu {
+        MenuItem {
+            title: "Open";
+            activated => { root.open(); }
+        }
+        MenuItem {
+            title: "Quit";
+            activated => { root.quit(); }
+        }
     }
 }
 
@@ -35,8 +57,8 @@ export component GifWindow inherits Window {
 
     in property <image> frame;
 
-    width: frame.width * 1phx;
-    height: frame.height * 1phx;
+    preferred-width: frame.width * 1phx;
+    preferred-height: frame.height * 1phx;
 
     Image {
         source: frame;

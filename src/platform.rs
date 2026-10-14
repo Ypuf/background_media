@@ -14,10 +14,7 @@ mod windows {
     use windows_sys::Win32::{
         Foundation::{HWND, LPARAM, LRESULT, WPARAM},
         UI::{
-            Input::KeyboardAndMouse::{
-                GetAsyncKeyState, INPUT, INPUT_KEYBOARD, KEYEVENTF_KEYUP, SendInput, VK_LWIN,
-                VK_RWIN,
-            },
+            Input::KeyboardAndMouse::{GetAsyncKeyState, VK_RMENU},
             Shell::{DefSubclassProc, SetWindowSubclass},
             WindowsAndMessaging::{
                 GWL_EXSTYLE, GetWindowLongPtrW, HWND_BOTTOM, SWP_NOACTIVATE, SWP_NOMOVE,
@@ -69,18 +66,8 @@ mod windows {
         unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
     }
 
-    pub fn super_down() -> bool {
-        unsafe { GetAsyncKeyState(VK_LWIN.into()) < 0 || GetAsyncKeyState(VK_RWIN.into()) < 0 }
-    }
-
-    pub fn fuck_off_start_menu() {
-        let mut inputs: [INPUT; 2] = unsafe { std::mem::zeroed() };
-        for (input, flags) in inputs.iter_mut().zip([0, KEYEVENTF_KEYUP]) {
-            input.r#type = INPUT_KEYBOARD;
-            input.Anonymous.ki.wVk = 0xE8;
-            input.Anonymous.ki.dwFlags = flags;
-        }
-        unsafe { SendInput(2, inputs.as_ptr(), size_of::<INPUT>() as i32) };
+    pub fn ralt_down() -> bool {
+        unsafe { GetAsyncKeyState(VK_RMENU.into()) < 0 }
     }
 }
 
@@ -90,9 +77,7 @@ mod other {
 
     pub fn make_overlay(_window: &Window) {}
 
-    pub fn super_down() -> bool {
+    pub fn ralt_down() -> bool {
         false
     }
-
-    pub fn fuck_off_start_menu() {}
 }
