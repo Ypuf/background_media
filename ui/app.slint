@@ -27,3 +27,20 @@ export component AppWindow inherits Window {
         clicked => { root.add-clicked(); }
     }
 }
+
+export component GifWindow inherits Window {
+    no-frame: true;
+    background: transparent;
+    title: "background_gif";
+
+    in property <image> frame;
+
+    width: frame.width * 1phx;
+    height: frame.height * 1phx;
+
+    Image {
+        source: frame;
+        width: 100%;
+        height: 100%;
+    }
+}
