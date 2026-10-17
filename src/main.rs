@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::{cell::RefCell, rc::Rc};
 
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
@@ -12,13 +14,30 @@ fn is_gif(p: &std::path::Path) -> bool {
 }
 
 fn main() {
+    #[cfg(target_os = "linux")]
+    {
+        use slint::winit_030::winit::{
+            event_loop::EventLoop, platform::x11::EventLoopBuilderExtX11,
+        };
+        let mut event_loop = EventLoop::with_user_event();
+        event_loop.with_x11();
+        slint::BackendSelector::new()
+            .backend_name("winit".into())
+            .renderer_name("software".into())
+            .with_winit_event_loop_builder(event_loop)
+            .select()
+            .unwrap();
+    }
+
     let ui = AppWindow::new().unwrap();
     let overlays = Rc::new(RefCell::new(overlay::Overlays::default()));
 
     let gif_chosen = {
         let overlays = overlays.clone();
+        let asweak = ui.as_weak();
         move |p: &std::path::Path| {
-            if let Err(e) = overlay::open(&overlays, p) {
+            let on_top = asweak.upgrade().is_some_and(|ui| ui.get_on_top());
+            if let Err(e) = overlay::open(&overlays, p, on_top) {
                 rfd::MessageDialog::new()
                     .set_title("Couldn't open GIF")
                     .set_description(format!("{}: {e}", p.display()))
@@ -71,6 +90,10 @@ fn main() {
 
     let tray = Tray::new().unwrap();
     tray.on_quit(|| slint::quit_event_loop().unwrap());
+    tray.on_clickthrough_toggled({
+        let overlays = overlays.clone();
+        move |on| overlays.borrow().clickthrough.set(on)
+    });
     tray.on_open({
         let weak = ui.as_weak();
         move || {

@@ -28,24 +28,50 @@ struct Overlay {
     id: u64,
     _window: GifWindow,
     _timer: Rc<Timer>,
+    _clickthrough: Timer,
 }
 
-#[derive(Default)]
 pub struct Overlays {
     next_id: u64,
     list: Vec<Overlay>,
+    pub clickthrough: Rc<Cell<bool>>,
 }
 
-pub fn open(overlays: &Rc<RefCell<Overlays>>, path: &Path) -> Result<(), Box<dyn Error>> {
+impl Default for Overlays {
+    fn default() -> Self {
+        Self {
+            next_id: 0,
+            list: Vec::new(),
+            clickthrough: Rc::new(Cell::new(true)),
+        }
+    }
+}
+
+pub fn open(
+    overlays: &Rc<RefCell<Overlays>>,
+    path: &Path,
+    on_top: bool,
+) -> Result<(), Box<dyn Error>> {
     let frames = load_frames(path)?;
     let window = GifWindow::new()?;
     window.set_frame(frames[0].0.clone());
     window.show()?;
 
-    window.window().with_winit_window(|w| {
-        w.set_window_level(WindowLevel::AlwaysOnBottom);
-        platform::make_overlay(w);
-    });
+    let asweak = window.as_weak();
+    slint::spawn_local(async move {
+        let Some(window) = asweak.upgrade() else {
+            return;
+        };
+        let Ok(w) = window.window().winit_window().await else {
+            return;
+        };
+        w.set_window_level(if on_top {
+            WindowLevel::AlwaysOnTop
+        } else {
+            WindowLevel::AlwaysOnBottom
+        });
+        platform::make_overlay(&w, on_top);
+    })?;
 
     let timer = Rc::new(Timer::default());
     if frames.len() > 1 {
@@ -56,10 +82,12 @@ pub fn open(overlays: &Rc<RefCell<Overlays>>, path: &Path) -> Result<(), Box<dyn
     let id = o.next_id;
     o.next_id += 1;
     giffing_input(&window, Rc::downgrade(overlays), id);
+    let clickthrough = clickthrough_unless_ralt(&window, o.clickthrough.clone());
     o.list.push(Overlay {
         id,
         _window: window,
         _timer: timer,
+        _clickthrough: clickthrough,
     });
     Ok(())
 }
@@ -111,6 +139,27 @@ fn giffing_input(window: &GifWindow, overlays: Weak<RefCell<Overlays>>, id: u64)
         }
         EventResult::Propagate
     });
+}
+
+fn clickthrough_unless_ralt(window: &GifWindow, enabled: Rc<Cell<bool>>) -> Timer {
+    let weak = window.as_weak();
+    let applied = Cell::new(None);
+    let timer = Timer::default();
+    timer.start(TimerMode::Repeated, Duration::from_millis(50), move || {
+        let want = enabled.get() && !platform::ralt_down();
+        if applied.get() == Some(want) {
+            return;
+        }
+        let Some(window) = weak.upgrade() else { return };
+        if window
+            .window()
+            .with_winit_window(|w| platform::set_clickthrough(w, want))
+            .is_some()
+        {
+            applied.set(Some(want));
+        }
+    });
+    timer
 }
 
 fn resize_edge(w: &Window, pos: PhysicalPosition<f64>) -> Option<ResizeDirection> {

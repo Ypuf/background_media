@@ -24,18 +24,30 @@ mod windows {
         },
     };
 
-    pub fn make_overlay(window: &Window) {
-        window.set_skip_taskbar(true);
-        let Ok(handle) = window.window_handle() else {
-            return;
-        };
-        let RawWindowHandle::Win32(handle) = handle.as_raw() else {
-            return;
-        };
-        let hwnd = handle.hwnd.get() as HWND;
+    fn hwnd(window: &Window) -> Option<HWND> {
+        match window.window_handle().ok()?.as_raw() {
+            RawWindowHandle::Win32(handle) => Some(handle.hwnd.get() as HWND),
+            _ => None,
+        }
+    }
+
+    fn no_activate(hwnd: HWND) {
         unsafe {
             let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_NOACTIVATE as isize);
+        }
+    }
+
+    pub fn make_overlay(window: &Window, on_top: bool) {
+        window.set_skip_taskbar(true);
+        let Some(hwnd) = hwnd(window) else {
+            return;
+        };
+        no_activate(hwnd);
+        if on_top {
+            return;
+        }
+        unsafe {
             SetWindowSubclass(hwnd, Some(keep_at_bottom), 1, 0);
             SetWindowPos(
                 hwnd,
@@ -66,6 +78,13 @@ mod windows {
         unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
     }
 
+    pub fn set_clickthrough(window: &Window, clickthrough: bool) {
+        let _ = window.set_cursor_hittest(!clickthrough);
+        if let Some(hwnd) = hwnd(window) {
+            no_activate(hwnd);
+        }
+    }
+
     pub fn ralt_down() -> bool {
         unsafe { GetAsyncKeyState(VK_RMENU.into()) < 0 }
     }
@@ -75,7 +94,11 @@ mod windows {
 mod other {
     use slint::winit_030::winit::window::Window;
 
-    pub fn make_overlay(_window: &Window) {}
+    pub fn make_overlay(_window: &Window, _on_top: bool) {}
+
+    pub fn set_clickthrough(window: &Window, clickthrough: bool) {
+        let _ = window.set_cursor_hittest(!clickthrough);
+    }
 
     pub fn ralt_down() -> bool {
         false

@@ -9,6 +9,7 @@ export component AppWindow inherits Window {
     min-height: 450px * scale;
 
     in property <bool> hovering;
+    in-out property <bool> on-top;
     callback add-clicked();
 
     Rectangle {
@@ -22,11 +23,27 @@ export component AppWindow inherits Window {
         }
     }
 
-    Button {
+    add-button := Button {
         x: 8px * scale;
         y: 8px * scale;
         text: "+";
         clicked => { root.add-clicked(); }
+    }
+
+    level-button := Button {
+        x: root.width - self.width - 8px * scale;
+        y: 8px * scale;
+        width: add-button.width;
+        height: add-button.height;
+        clicked => { root.on-top = !root.on-top; }
+    }
+
+    Image {
+        width: 16px * scale;
+        height: 16px * scale;
+        x: level-button.x + (level-button.width - self.width) / 2;
+        y: level-button.y + (level-button.height - self.height) / 2;
+        source: root.on-top ? @image-url("assets/arrow_up.png") : @image-url("assets/arrow_down.png");
     }
 }
 
@@ -34,6 +51,9 @@ export component Tray inherits SystemTrayIcon {
     icon: @image-url("assets/uplaod.png");
     tooltip: "background_gif";
 
+    in-out property <bool> clickthrough: true;
+    changed clickthrough => { root.clickthrough-toggled(self.clickthrough); }
+    callback clickthrough-toggled(bool);
     callback quit();
     callback open();
     clicked => { root.open(); }
@@ -43,6 +63,13 @@ export component Tray inherits SystemTrayIcon {
             title: "Open";
             activated => { root.open(); }
         }
+
+        MenuItem {
+            title: "Toggle click through";
+            checkable: true;
+            checked <=> root.clickthrough;
+        }
+
         MenuItem {
             title: "Quit";
             activated => { root.quit(); }
